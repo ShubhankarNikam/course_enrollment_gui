@@ -1,83 +1,99 @@
 import sqlite3
 import tkinter as tk
-from tkinter import messagebox, ttk
+from tkinter import ttk
 
 
-def fet_and_dis_course():
-    con = sqlite3.connect("course_enrollment.db")
+def get_connection():
+    return sqlite3.connect("course_enrollment.db")
+
+
+def fet_course():
+    
+    con = get_connection()
     cursor = con.cursor()
-    cursor.execute("SELECT id, title, description, instructor FROM courses")
-    global courses
+    cursor.execute("SELECT * FROM courses")
     courses = cursor.fetchall()
     con.close()
+    courses_tree.delete(*courses_tree.get_children())
 
-    c_listbox.delete(0, "end")
+
     for course in courses:
-        c_listbox.insert("end", course[1])
+        courses_tree.insert("", "end", values=course)
 
-def enroll_student():
-    sel_index = c_listbox.curselection()
-    if not sel_index:
+
+def enrl_course():
+    select_index = courses_tree.focus()
+    if not select_index:
+  
         return
-
-    c_id = courses[sel_index[0]][0]
+    course_id = int(courses_tree.item(select_index, "values")[0])
     
-    c_title = courses[sel_index[0]][1]
-
-    con = sqlite3.connect("course_enrollment.db")
+    course_title = courses_tree.item(select_index, "values")[1]
+  
+    student_name = std_entry.get()
+  
+  
+    con = get_connection()
     cursor = con.cursor()
+  
+  
+    cursor.execute("SELECT COUNT(*) FROM enrollments WHERE course_id=?", (course_id,))
+    enrl_cnt = cursor.fetchone()[0]
+    cursor.execute("SELECT capacity FROM courses WHERE id=?", (course_id,))
+  
+    capacity = cursor.fetchone()[0]
 
-    cursor.execute("SELECT COUNT(*) FROM enrollments WHERE c_id=?", (c_id,))
-    current_enrollments = cursor.fetchone()[0]
-    
-    cursor.execute("SELECT capacity FROM courses WHERE id=?", (c_id,))
-    
-    max_capacity = cursor.fetchone()[0]
 
-    if current_enrollments < max_capacity:
-        student_name = student_name_entry.get()
-        if not student_name:
-            messagebox.showwarning("Missing Information", "Please enter your name.")
-            return
-
-        cursor.execute("INSERT INTO enrollments (c_id, student_name) VALUES (?, ?)", (c_id, student_name))
-    
-        con.commit()
-        status_label.config(text=f"Enrolled in {c_title}.")
-    
+    if enrl_cnt >= capacity:
+        sts_lbl.config(text="Course is already full. Cannot enroll.", fg="red")
     else:
-        status_label.config(text=f"The course {c_title} is full. Enrollment closed.")
+        cursor.execute("INSERT INTO enrollments (course_id, student_name) VALUES (?, ?)", (course_id, student_name))
+        con.commit()
+        con.close()
 
-    con.close()
+        sts_lbl.config(text=f"Enrolled in {course_title} successfully.", fg="green")
+        fet_course()
 
-student_root = tk.Tk()
-
-student_root.title("Student - Course Enrollment")
-
-style = ttk.Style()
-
-course_frame = ttk.LabelFrame(student_root, text="Available Courses", padding=10)
-course_frame.pack(padx=10, pady=10, fill="both", expand=True)
-
-c_listbox = tk.Listbox(course_frame, selectmode="SINGLE", height=10, width=40)
-
-c_listbox.pack(fill="both", expand=True)
-
-fet_and_dis_course()
-
-enroll_frame = ttk.LabelFrame(student_root, text="Enrollment", padding=10)
-enroll_frame.pack(padx=10, pady=10)
-student_name_label = ttk.Label(enroll_frame, text="Enter Your Name:")
-student_name_label.grid(row=0, column=0, padx=5, pady=5)
-student_name_entry = ttk.Entry(enroll_frame, width=30)
-student_name_entry.grid(row=0, column=1, padx=5, pady=5)
-enroll_button = ttk.Button(enroll_frame, text="Enroll", command=enroll_student)
-enroll_button.grid(row=1, column=0, columnspan=2, padx=5, pady=10)
-status_label = ttk.Label(student_root, text="", foreground="green")
-status_label.pack()
+        std_entry.delete(0, tk.END)
+stud_root = tk.Tk()
+stud_root.title("Student Panel")
+eenrl_frame = tk.Frame(stud_root)
 
 
+eenrl_frame.pack(pady=20)
+std_lbl = tk.Label(eenrl_frame, text="Student Name:")
+
+std_lbl.grid(row=0, column=0, padx=10)
+
+std_entry = tk.Entry(eenrl_frame)
+
+
+std_entry.grid(row=0, column=1, padx=10)
+enrl_bt = tk.Button(eenrl_frame, text="Enroll", command=enrl_course)
+
+
+enrl_bt.grid(row=1, columnspan=2, pady=10)
+columns = ("ID", "Title", "Description", "Instructor", "Capacity")
+
+courses_tree = ttk.Treeview(stud_root, columns=columns, show="headings", height=10)
+
+
+courses_tree.pack(pady=20)
+
+
+for col in columns:
+    courses_tree.heading(col, text=col)
+fet_course()
+
+
+sts_lbl = tk.Label(stud_root, text="", fg="green", font=("Helvetica", 12))
+
+
+sts_lbl.pack()
 
 
 
-student_root.mainloop()
+
+
+
+stud_root.mainloop()
